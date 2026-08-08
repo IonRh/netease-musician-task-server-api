@@ -129,27 +129,6 @@ def health() -> dict[str, bool]:
     return {"ok": True}
 
 
-@app.get("/api/listen_music")
-def list_listen_music(
-    x_api_key: str | None = Header(default=None),
-) -> list[dict[str, Any]]:
-    with db() as conn:
-        require_any_apikey(conn, x_api_key)
-        rows = conn.execute(
-            """
-            SELECT
-                netease_item_id,
-                SUM(listened_count) AS listened_count,
-                SUM(total_listened_count) AS total_listened_count,
-                SUM(monthly_listened_count) AS monthly_listened_count
-            FROM listen_records
-            WHERE enabled=1
-              AND netease_item_id <> ''
-            GROUP BY netease_item_id
-            ORDER BY listened_count DESC, netease_item_id ASC
-            """
-        ).fetchall()
-    return [row_to_dict(row) for row in rows]
 
 
 @app.get("/api/next")
