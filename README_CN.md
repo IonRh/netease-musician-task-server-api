@@ -56,33 +56,38 @@ monthly_listen_limit
 
 ```http
 GET /api/next
-X-API-Key: 数据库中任意apikey
+X-API-Key: 当前客户端账号apikey
 ```
 
 服务端会跳过：
 
+- 当前客户端账号自己的歌曲或专辑
 - 当天没有听过歌的账号
 - 达到当天被听上限的音乐
 - 达到当月被听上限的音乐
 - `enabled=0` 的账号
 
+如果严格筛选后没有可播放记录，接口会进入初始化兜底，允许选择当天
+尚未听过歌的账号，避免新的一天所有计数为 0 时无法开始播放。
+
 ### 播放完成
 
 ```http
 POST /api/play/finish
-X-API-Key: 数据库中任意apikey
+X-API-Key: 当前客户端账号apikey
 ```
 
 请求体：
 
 ```json
 {
-  "account_md5": "账号MD5",
-  "netease_item_id": "歌曲或专辑ID"
+  "account_md5": "当前客户端账号MD5",
+  "netease_item_id": "api/next 返回的歌曲或专辑ID"
 }
 ```
 
-播放完成后，服务端自动更新当天、当月和累计计数。
+播放完成后，服务端增加当前客户端账号的听歌计数，并增加对应歌曲的
+被听计数。
 
 ### 查询账号
 
