@@ -30,6 +30,54 @@ CREATE TABLE IF NOT EXISTS listen_records (
     created_at          TEXT DEFAULT (datetime('now','localtime')),
     updated_at          TEXT DEFAULT (datetime('now','localtime'))
 );
+
+CREATE TABLE IF NOT EXISTS client_tokens (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_hash          TEXT NOT NULL UNIQUE,
+    label               TEXT NOT NULL DEFAULT '',
+    enabled             INTEGER NOT NULL DEFAULT 1,
+    risk_score          INTEGER NOT NULL DEFAULT 0,
+    risk_state          TEXT NOT NULL DEFAULT 'normal',
+    created_at          TEXT DEFAULT (datetime('now','localtime')),
+    last_seen_at        TEXT
+);
+
+CREATE TABLE IF NOT EXISTS client_token_accounts (
+    token_id            INTEGER NOT NULL,
+    account_md5         TEXT NOT NULL,
+    created_at          TEXT DEFAULT (datetime('now','localtime')),
+    PRIMARY KEY (token_id, account_md5),
+    FOREIGN KEY (token_id) REFERENCES client_tokens(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS play_leases (
+    task_id             TEXT PRIMARY KEY,
+    token_id            INTEGER NOT NULL,
+    listener_account_md5 TEXT NOT NULL,
+    target_account_md5  TEXT NOT NULL,
+    netease_item_id     TEXT NOT NULL,
+    play_token_hash     TEXT NOT NULL UNIQUE,
+    status              TEXT NOT NULL DEFAULT 'assigned',
+    issued_at           TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    expires_at          TEXT NOT NULL,
+    completed_at        TEXT,
+    client_ip           TEXT,
+    FOREIGN KEY (token_id) REFERENCES client_tokens(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_play_leases_token_status
+    ON play_leases(token_id, status, issued_at);
+
+CREATE TABLE IF NOT EXISTS risk_events (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_id            INTEGER,
+    client_ip           TEXT,
+    event_type          TEXT NOT NULL,
+    severity            INTEGER NOT NULL DEFAULT 1,
+    detail              TEXT NOT NULL DEFAULT '',
+    created_at          TEXT DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (token_id) REFERENCES client_tokens(id) ON DELETE SET NULL
+);
 """
 
 
@@ -38,6 +86,7 @@ def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA foreign_keys=ON;")
     return conn
 
 
@@ -53,6 +102,7 @@ def db() -> Iterator[sqlite3.Connection]:
 
 def init_db() -> None:
     with db() as conn:
+        conn.execute("PRAGMA foreign_keys=ON")
         conn.executescript(SCHEMA)
         columns = {
             row["name"]
